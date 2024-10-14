@@ -1,5 +1,5 @@
 const std = @import("std");
-const Request = @import("Request.zig");
+const Request = @import("Request.zig").Request;
 const net = std.net;
 const Allocator = std.mem.Allocator;
 const Connection = std.net.Server.Connection;
@@ -28,7 +28,7 @@ pub fn main() !void {
 }
 
 fn handleConnection(allocator: Allocator, conn: Connection) !void {
-    var request = try Request.parse(allocator, conn.stream.reader());
+    var request = try Request(std.net.Stream.Reader).parse(allocator, conn.stream.reader());
     defer request.deinit();
 
     if (std.mem.eql(u8, request.path, "/")) {
