@@ -28,7 +28,8 @@ pub fn main() !void {
 }
 
 fn handleConnection(allocator: Allocator, conn: Connection) !void {
-    var request = try Request(std.net.Stream.Reader).parse(allocator, conn.stream.reader());
+    const reader = conn.stream.reader();
+    var request = try Request(@TypeOf(reader)).parse(allocator, conn.stream.reader());
     defer request.deinit();
 
     if (std.mem.eql(u8, request.path, "/")) {
@@ -51,28 +52,12 @@ fn handleConnection(allocator: Allocator, conn: Connection) !void {
         // creating this on allocator so we can free them
         // Is there better way to do this?
         // Maybe this can be on stack, as these are not needed outside of this frame
-        try resp_lines.append(try std.fmt.allocPrint(
-            allocator,
-            "{s}{s}",
-            .{ "HTTP/1.1 200 OK", CRLF },
-        ));
-        try resp_lines.append(try std.fmt.allocPrint(
-            allocator,
-            "Content-Length: {d}{s}",
-            .{ slug.len, CRLF },
-        ));
-        try resp_lines.append(try std.fmt.allocPrint(
-            allocator,
-            "Content-Type: {s}{s}",
-            .{ "text/plain", CRLF },
-        ));
+        try resp_lines.append(try std.fmt.allocPrint(allocator, "{s}{s}", .{ "HTTP/1.1 200 OK", CRLF }));
+        try resp_lines.append(try std.fmt.allocPrint(allocator, "Content-Length: {d}{s}", .{ slug.len, CRLF }));
+        try resp_lines.append(try std.fmt.allocPrint(allocator, "Content-Type: {s}{s}", .{ "text/plain", CRLF }));
 
         // Body
-        try resp_lines.append(try std.fmt.allocPrint(
-            allocator,
-            "{s}{s}",
-            .{ CRLF, slug },
-        ));
+        try resp_lines.append(try std.fmt.allocPrint(allocator, "{s}{s}", .{ CRLF, slug }));
 
         const resp_bytes = try std.mem.join(allocator, "", resp_lines.items);
         _ = try conn.stream.write(resp_bytes);
