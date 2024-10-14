@@ -46,3 +46,9 @@ fn readStatusLine(line: []const u8) struct { method: []const u8, path: []const u
         .path = path,
     };
 }
+
+test "Request allocations" {
+    const testing = std.testing;
+    // const allocator = testing.allocator;
+    testing.expect(false);
+}
