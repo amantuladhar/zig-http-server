@@ -26,7 +26,7 @@ pub fn Http(comptime ReaderType: type) type {
                 self.allocator.free(item.key_ptr.*);
                 self.allocator.free(item.value_ptr.*);
             }
-            self.allocator.free(self.routes);
+            self.routes.deinit();
         }
 
         pub fn get(self: *Self, path: []const u8, handlerFn: HandlerFnType) !void {
