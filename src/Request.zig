@@ -20,11 +20,6 @@ pub fn Request(comptime ReaderType: type) type {
         pub fn parse(allocator: Allocator, reader: Reader) !Self {
             const status_line = try Self.readStatusLine(allocator, reader);
             const headers = try Self.readHeader(allocator, reader);
-            var it = headers.iterator();
-            while (it.next()) |entry| {
-                std.debug.print("Key: {s}, Value: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-            }
-
             return Self{
                 .method = status_line.method,
                 .path = status_line.path,
@@ -74,6 +69,7 @@ pub fn Request(comptime ReaderType: type) type {
             const line = try reader.readUntilDelimiterAlloc(allocator, delimiter, 256);
             defer allocator.free(line);
             var iter = std.mem.split(u8, line, " ");
+            // Duplicating here becuase freeing them separately makes more straight forward
             const method = try allocator.dupe(u8, iter.next() orelse @panic("Request method not found"));
             const path = try allocator.dupe(u8, iter.next() orelse @panic("Request path not found"));
             return .{
