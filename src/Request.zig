@@ -4,12 +4,12 @@ const CRLF = @import("main.zig").CRLF;
 const delimiter = '\n';
 
 pub fn Request(comptime ReaderType: type) type {
-    comptime {
-        validateComptime(ReaderType);
-    }
+    const ContextType = ReaderContextType(ReaderType);
+    const ErrorType = ReaderReadErrorType(ContextType);
+    const readFn = readerReadFn(ContextType, ErrorType);
     return struct {
         const Self = @This();
-        const Reader = ReaderType;
+        const Reader = std.io.Reader(ContextType, ErrorType, readFn);
 
         method: []const u8,
         path: []const u8,
@@ -41,7 +41,7 @@ pub fn Request(comptime ReaderType: type) type {
             self.headers.deinit();
         }
 
-        fn readHeader(allocator: Allocator, reader: ReaderType) !std.StringHashMap([]const u8) {
+        fn readHeader(allocator: Allocator, reader: Reader) !std.StringHashMap([]const u8) {
             var headers = std.StringHashMap([]const u8).init(allocator);
             while (true) {
                 const header_line = reader.readUntilDelimiterAlloc(allocator, delimiter, 512) catch |err| {
@@ -65,7 +65,7 @@ pub fn Request(comptime ReaderType: type) type {
             return headers;
         }
 
-        fn readStatusLine(allocator: Allocator, reader: ReaderType) !struct { method: []const u8, path: []const u8 } {
+        fn readStatusLine(allocator: Allocator, reader: Reader) !struct { method: []const u8, path: []const u8 } {
             const line = try reader.readUntilDelimiterAlloc(allocator, delimiter, 256);
             defer allocator.free(line);
             var iter = std.mem.split(u8, line, " ");
@@ -80,21 +80,30 @@ pub fn Request(comptime ReaderType: type) type {
     };
 }
 
-fn validateComptime(comptime ReaderType: type) void {
-    comptime {
-        if (!@hasDecl(ReaderType, "readUntilDelimiter")) {
-            @compileError("Request reader type must have readUntilDelimiter method");
-        }
-        if (!@hasDecl(ReaderType, "readUntilDelimiterAlloc")) {
-            @compileError("Request reader type must have readUntilDelimiterAlloc method");
-        }
-        if (!@hasDecl(ReaderType, "readUntilDelimiterOrEof")) {
-            @compileError("Request reader type must have readUntilDelimiterOrEof method");
-        }
-        if (!@hasDecl(ReaderType, "readUntilDelimiterOrEofAlloc")) {
-            @compileError("Request reader type must have readUntilDelimiterOrEofAlloc method");
+fn ReaderContextType(comptime ReaderType: type) type {
+    const fields = @typeInfo(ReaderType).Struct.fields;
+    for (fields) |field| {
+        if (std.mem.eql(u8, field.name, "context")) {
+            return field.type;
         }
     }
+    @compileError("ReaderType doesn't have context field");
+}
+
+fn ReaderReadErrorType(comptime ContextType: type) type {
+    const info = @typeInfo(ContextType);
+    if (info == .Pointer) {
+        return info.Pointer.child.ReadError;
+    }
+    return ContextType.ReadError;
+}
+
+fn readerReadFn(comptime Context: type, comptime ReadError: type) fn (context: Context, buffer: []u8) ReadError!usize {
+    const info = @typeInfo(Context);
+    if (info == .Pointer) {
+        return info.Pointer.child.read;
+    }
+    return Context.read;
 }
 
 test "Request allocations" {
