@@ -4,7 +4,7 @@ const net = std.net;
 const Allocator = std.mem.Allocator;
 const Connection = std.net.Server.Connection;
 
-const CRLF = "\r\n";
+pub const CRLF = "\r\n";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -29,7 +29,11 @@ pub fn main() !void {
 
 fn handleConnection(allocator: Allocator, conn: Connection) !void {
     const reader = conn.stream.reader();
-    var request = try Request(@TypeOf(reader)).parse(allocator, conn.stream.reader());
+    // const header_line_part = reader.readUntilDelimiterAlloc(allocator, '\n', 512) catch |err| {
+    //     return err;
+    // };
+    // const header_line = try header_line_part;
+    var request = try Request(@TypeOf(reader)).parse(allocator, reader);
     defer request.deinit();
 
     if (std.mem.eql(u8, request.path, "/")) {

@@ -1,5 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const CRLF = @import("main.zig").CRLF;
+const delimiter = '\n';
 
 pub fn Request(comptime ReaderType: type) type {
     comptime {
@@ -16,15 +18,17 @@ pub fn Request(comptime ReaderType: type) type {
         allocator: Allocator,
 
         pub fn parse(allocator: Allocator, reader: Reader) !Self {
-            const delimiter = '\n';
-
-            var buf: [1024]u8 = undefined;
-            const status_line = Self.readStatusLine((try reader.readUntilDelimiterOrEof(&buf, delimiter)).?);
+            const status_line = try Self.readStatusLine(allocator, reader);
+            const headers = try Self.readHeader(allocator, reader);
+            var it = headers.iterator();
+            while (it.next()) |entry| {
+                std.debug.print("Key: {s}, Value: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+            }
 
             return Self{
-                .method = try allocator.dupe(u8, status_line.method),
-                .path = try allocator.dupe(u8, status_line.path),
-                .headers = std.StringHashMap([]const u8).init(allocator),
+                .method = status_line.method,
+                .path = status_line.path,
+                .headers = headers,
                 .body = try allocator.alloc(u8, 1),
                 .allocator = allocator,
             };
@@ -42,10 +46,36 @@ pub fn Request(comptime ReaderType: type) type {
             self.headers.deinit();
         }
 
-        fn readStatusLine(line: []const u8) struct { method: []const u8, path: []const u8 } {
+        fn readHeader(allocator: Allocator, reader: ReaderType) !std.StringHashMap([]const u8) {
+            var headers = std.StringHashMap([]const u8).init(allocator);
+            while (true) {
+                const header_line = reader.readUntilDelimiterAlloc(allocator, delimiter, 512) catch |err| {
+                    if (err == error.EndOfStream) {
+                        break;
+                    }
+                    return err;
+                };
+                defer allocator.free(header_line);
+                const line = std.mem.trimRight(u8, header_line, "\r");
+                if (line.len == 0) {
+                    break;
+                }
+                var it = std.mem.split(u8, line, ": ");
+                const key = it.next() orelse @panic("Header key not present");
+                const value = it.next() orelse @panic("Header value not present");
+                // Duplicating this here because we remove key and value seperately when we deinit
+                // Better way?
+                try headers.put(try allocator.dupe(u8, key), try allocator.dupe(u8, value));
+            }
+            return headers;
+        }
+
+        fn readStatusLine(allocator: Allocator, reader: ReaderType) !struct { method: []const u8, path: []const u8 } {
+            const line = try reader.readUntilDelimiterAlloc(allocator, delimiter, 256);
+            defer allocator.free(line);
             var iter = std.mem.split(u8, line, " ");
-            const method = iter.next() orelse @panic("Request method not found");
-            const path = iter.next() orelse @panic("Request path not found");
+            const method = try allocator.dupe(u8, iter.next() orelse @panic("Request method not found"));
+            const path = try allocator.dupe(u8, iter.next() orelse @panic("Request path not found"));
             return .{
                 .method = method,
                 .path = path,
@@ -75,7 +105,7 @@ test "Request allocations" {
     const testing = std.testing;
     const allocator = testing.allocator;
 
-    const input = "GET /path HTTP/1.1\n";
+    const input = "GET /path HTTP/1.1\r\nContent-Type: text/plain\r\nHost: test\r\n\r\n";
     var bf = std.io.fixedBufferStream(input);
     const reader = bf.reader();
 
