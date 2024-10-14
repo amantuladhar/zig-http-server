@@ -51,23 +51,31 @@ fn handleConnection(allocator: Allocator, conn: Connection) !void {
         // creating this on allocator so we can free them
         // Is there better way to do this?
         // Maybe this can be on stack, as these are not needed outside of this frame
-        try resp_lines.append(try allocator.dupe(u8, "HTTP/1.1 200 OK"));
-        try resp_lines.append(try allocator.dupe(u8, CRLF));
-
-        const buf = try allocator.alloc(u8, 1024);
-
-        const cl_header = try std.fmt.bufPrint(buf, "Content-Length: {d}{s}", .{ slug.len, CRLF });
-        try resp_lines.append(try allocator.dupe(u8, cl_header));
-
-        const ct_header = try std.fmt.bufPrint(buf, "Content-Type: {s}{s}", .{ "text/plain", CRLF });
-        try resp_lines.append(try allocator.dupe(u8, ct_header));
+        try resp_lines.append(try std.fmt.allocPrint(
+            allocator,
+            "{s}{s}",
+            .{ "HTTP/1.1 200 OK", CRLF },
+        ));
+        try resp_lines.append(try std.fmt.allocPrint(
+            allocator,
+            "Content-Length: {d}{s}",
+            .{ slug.len, CRLF },
+        ));
+        try resp_lines.append(try std.fmt.allocPrint(
+            allocator,
+            "Content-Type: {s}{s}",
+            .{ "text/plain", CRLF },
+        ));
 
         // Body
-        try resp_lines.append(try allocator.dupe(u8, CRLF));
-        try resp_lines.append(try allocator.dupe(u8, slug));
+        try resp_lines.append(try std.fmt.allocPrint(
+            allocator,
+            "{s}{s}",
+            .{ CRLF, slug },
+        ));
 
-        const final_reqponse = try std.mem.join(allocator, "", resp_lines.items);
-        _ = try conn.stream.write(final_reqponse);
+        const resp_bytes = try std.mem.join(allocator, "", resp_lines.items);
+        _ = try conn.stream.write(resp_bytes);
 
         return;
     }
