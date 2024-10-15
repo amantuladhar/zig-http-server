@@ -16,6 +16,7 @@ pub fn Request(comptime ReaderType: type) type {
         method: []const u8,
         path: []const u8,
         headers: std.StringHashMap([]const u8),
+        path_params: ?std.StringHashMap([]const u8),
         body: []u8,
         allocator: Allocator,
 
@@ -26,6 +27,7 @@ pub fn Request(comptime ReaderType: type) type {
                 .method = status_line.method,
                 .path = status_line.path,
                 .headers = headers,
+                .path_params = null,
                 .body = try allocator.alloc(u8, 1),
                 .allocator = allocator,
             };
@@ -35,12 +37,22 @@ pub fn Request(comptime ReaderType: type) type {
             self.allocator.free(self.method);
             self.allocator.free(self.path);
             self.allocator.free(self.body);
+
             var header_it = self.headers.iterator();
             while (header_it.next()) |entry| {
                 self.allocator.free(entry.key_ptr.*);
                 self.allocator.free(entry.value_ptr.*);
             }
             self.headers.deinit();
+
+            if (self.path_params) |pp| {
+                var pp_it = pp.iterator();
+                while (pp_it.next()) |entry| {
+                    self.allocator.free(entry.key_ptr.*);
+                    self.allocator.free(entry.value_ptr.*);
+                }
+                pp.deinit();
+            }
         }
 
         fn readHeader(allocator: Allocator, reader: Reader) !std.StringHashMap([]const u8) {
