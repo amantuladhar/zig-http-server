@@ -45,7 +45,6 @@ pub fn Http(comptime ReaderType: type) type {
                 const conn = try listener.accept();
                 defer conn.stream.close();
                 try self.handleConnection(conn);
-                break;
             }
         }
 
