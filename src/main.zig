@@ -23,6 +23,7 @@ pub fn main() !void {
     try http.get("/", root);
     try http.get("/echo/{slug}", echo);
     try http.get("/user-agent", userAgent);
+    try http.get("/files/{path}", getFile);
     try http.start();
 }
 
@@ -41,6 +42,19 @@ fn echo(allocator: Allocator, req: *const Http.Request) !*Http.Response {
 fn userAgent(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     const body = req.headers.get("User-Agent").?;
     const resp = try Http.Response.initOnHeap(allocator, 200, body);
+    return resp;
+}
+
+fn getFile(allocator: Allocator, req: *const Http.Request) !*Http.Response {
+    const path = req.path_params.?.get("path").?;
+    var abs_path_buf: [1024]u8 = undefined;
+    const abs_path = try std.fmt.bufPrint(&abs_path_buf, "/tmp/{s}", .{path});
+    const ff = try std.fs.openFileAbsolute(abs_path, .{ .mode = .read_only });
+    defer ff.close();
+    const content = try ff.readToEndAlloc(allocator, 1024);
+    defer allocator.free(content);
+
+    const resp = try Http.Response.initOnHeap(allocator, 200, content);
     return resp;
 }
 

@@ -236,6 +236,9 @@ test "find match" {
     try testing.expectEqualSlices(u8, p5.?.get("slug").?, "value1");
     try testing.expect(p5.?.get("slug2") != null);
     try testing.expectEqualSlices(u8, p5.?.get("slug2").?, "value2");
+
+    const p6 = try findMatch(allocator, "/user-agent/{slug}", "/files/value1");
+    try testing.expect(p6 == null);
 }
 
 fn deinit(allocator: Allocator, p1: *std.StringHashMap([]const u8)) void {
