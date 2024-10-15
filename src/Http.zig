@@ -7,7 +7,7 @@ pub fn Http(comptime ReaderType: type) type {
         pub const Request = @import("Request.zig").Request(ReaderType);
         pub const Response = @import("Response.zig");
 
-        pub const HandlerFnType = *const fn (allocator: Allocator, req: Request) anyerror!*Response;
+        pub const HandlerFnType = *const fn (allocator: Allocator, req: *const Request) anyerror!*Response;
 
         const Self = @This();
         routes: std.StringHashMap(HandlerFnType),
@@ -33,7 +33,13 @@ pub fn Http(comptime ReaderType: type) type {
             try self.routes.put(try self.allocator.dupe(u8, path), handlerFn);
         }
 
-        pub fn start(self: *Self, listener: *std.net.Server) !void {
+        pub fn start(self: *Self) !void {
+            const address = try std.net.Address.resolveIp("127.0.0.1", 4221);
+            var listener = try address.listen(.{
+                .reuse_address = true,
+            });
+            defer listener.deinit();
+
             while (true) {
                 const conn = try listener.accept();
                 defer conn.stream.close();
@@ -43,36 +49,24 @@ pub fn Http(comptime ReaderType: type) type {
 
         pub fn handleConnection(self: *Self, conn: std.net.Server.Connection) !void {
             const reader = conn.stream.reader();
-            var request = try Request.parse(self.allocator, reader);
+            var request = try Request.init(self.allocator, reader);
             defer request.deinit();
 
             var it = self.routes.iterator();
             var found = false;
             while (it.next()) |route| {
-                const path_params = findMatch(
-                    self.allocator,
-                    route.key_ptr.*,
-                    request.path,
-                ) orelse continue;
+                const path_params = try findMatch(self.allocator, route.key_ptr.*, request.path) orelse continue;
 
                 found = true;
                 request.path_params = path_params;
 
-                const resp = try route.value_ptr.*(self.allocator, request);
+                const resp = try route.value_ptr.*(self.allocator, &request);
                 defer resp.deinit();
                 try Self.writeToConn(self.allocator, conn, &request, resp);
             }
             if (!found) {
                 _ = try conn.stream.write("HTTP/1.1 404 Not Found\r\n\r\n");
             }
-
-            // if (self.routes.get(request.path)) |handlerFn| {
-            //     const resp = try handlerFn(self.allocator, request);
-            //     defer resp.deinit();
-            //     try Self.writeToConn(self.allocator, conn, &request, resp);
-            // } else {
-            //     std.debug.print("No mapping found\n", .{});
-            // }
         }
 
         pub fn writeToConn(

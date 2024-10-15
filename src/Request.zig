@@ -20,7 +20,7 @@ pub fn Request(comptime ReaderType: type) type {
         body: []u8,
         allocator: Allocator,
 
-        pub fn parse(allocator: Allocator, reader: Reader) !Self {
+        pub fn init(allocator: Allocator, reader: Reader) !Self {
             const status_line = try Self.readStatusLine(allocator, reader);
             const headers = try Self.readHeader(allocator, reader);
             return Self{
@@ -51,7 +51,7 @@ pub fn Request(comptime ReaderType: type) type {
                     self.allocator.free(entry.key_ptr.*);
                     self.allocator.free(entry.value_ptr.*);
                 }
-                pp.deinit();
+                self.path_params.?.deinit();
             }
         }
 
@@ -128,7 +128,9 @@ test "Request allocations" {
     var bf = std.io.fixedBufferStream(input);
     const reader = bf.reader();
 
-    var request = try Request(@TypeOf(reader)).parse(allocator, reader);
+    var request = try Request(@TypeOf(reader)).init(allocator, reader);
+    request.path_params = std.StringHashMap([]const u8).init(allocator);
+    try request.path_params.?.put(try allocator.dupe(u8, "slug"), try allocator.dupe(u8, "value"));
     defer request.deinit();
 
     try testing.expect(std.mem.eql(u8, request.method, "GET"));
