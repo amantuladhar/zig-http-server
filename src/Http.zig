@@ -43,9 +43,10 @@ pub fn Http(comptime ReaderType: type) type {
 
             while (true) {
                 const conn = try listener.accept();
-                const thread = try std.Thread.spawn(.{}, handleConnection, .{self, conn});
+                // Probably bad as thead per connection is not ideal
+                // Update to use some form of thead pool or event loop
+                const thread = try std.Thread.spawn(.{}, handleConnection, .{ self, conn });
                 _ = thread;
-                // try self.handleConnection(conn);
             }
         }
 
