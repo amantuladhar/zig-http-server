@@ -37,6 +37,7 @@ fn echo(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     const resp = try Http.Response.initOnHeap(allocator, 200, body);
     return resp;
 }
+
 fn userAgent(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     const body = req.headers.get("User-Agent").?;
     const resp = try Http.Response.initOnHeap(allocator, 200, body);
@@ -52,8 +53,9 @@ pub fn sessionSignalHandler(i: c_int) callconv(.C) void {
         @panic("🔴 Memory leak found!!!!!!!");
     }
 }
-
+// TODO: Need to fix these problems
 // Still doesn't handle when app panics
+// When app is terminated - it hangs - but after cleanup is done
 fn setupGracefulShutdown() !void {
     const act = std.posix.Sigaction{
         .handler = .{ .handler = &sessionSignalHandler },

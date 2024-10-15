@@ -43,12 +43,14 @@ pub fn Http(comptime ReaderType: type) type {
 
             while (true) {
                 const conn = try listener.accept();
-                defer conn.stream.close();
-                try self.handleConnection(conn);
+                const thread = try std.Thread.spawn(.{}, handleConnection, .{self, conn});
+                _ = thread;
+                // try self.handleConnection(conn);
             }
         }
 
         pub fn handleConnection(self: *Self, conn: std.net.Server.Connection) !void {
+            defer conn.stream.close();
             const reader = conn.stream.reader();
             var request = Request.init(self.allocator, reader) catch |err| {
                 if (err == error.EndOfStream) {
