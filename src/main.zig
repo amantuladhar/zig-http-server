@@ -7,7 +7,7 @@ const Allocator = std.mem.Allocator;
 const Connection = std.net.Server.Connection;
 
 pub const CRLF = "\r\n";
-// Is this even a right approach?
+// This is definitely not a right approach, but can't find alternative at the moment?
 // Don't like global variable, but how do call deinit
 // when we do graceful shutdown
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -22,6 +22,7 @@ pub fn main() !void {
 
     try http.get("/", root);
     try http.get("/echo/{slug}", echo);
+    try http.get("/user-agent", userAgent);
     try http.start();
 }
 
@@ -36,6 +37,11 @@ fn echo(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     const resp = try Http.Response.initOnHeap(allocator, 200, body);
     return resp;
 }
+fn userAgent(allocator: Allocator, req: *const Http.Request) !*Http.Response {
+    const body = req.headers.get("User-Agent").?;
+    const resp = try Http.Response.initOnHeap(allocator, 200, body);
+    return resp;
+}
 
 pub fn sessionSignalHandler(i: c_int) callconv(.C) void {
     _ = i;
@@ -47,6 +53,7 @@ pub fn sessionSignalHandler(i: c_int) callconv(.C) void {
     }
 }
 
+// Still doesn't handle when app panics
 fn setupGracefulShutdown() !void {
     const act = std.posix.Sigaction{
         .handler = .{ .handler = &sessionSignalHandler },
