@@ -24,7 +24,8 @@ pub fn Http(comptime ReaderType: type) type {
             var it = self.routes.iterator();
             while (it.next()) |item| {
                 self.allocator.free(item.key_ptr.*);
-                self.allocator.free(item.value_ptr.*);
+                // no need to free value, as it is fn pointer
+                // self.allocator.free(item.value_ptr.*);
             }
             self.routes.deinit();
         }
@@ -44,6 +45,7 @@ pub fn Http(comptime ReaderType: type) type {
                 const conn = try listener.accept();
                 defer conn.stream.close();
                 try self.handleConnection(conn);
+                break;
             }
         }
 
@@ -106,6 +108,7 @@ pub fn Http(comptime ReaderType: type) type {
             }));
 
             const resp_bytes = try std.mem.join(allocator, "", resp_lines.items);
+            defer allocator.free(resp_bytes);
             _ = try conn.stream.write(resp_bytes);
 
             return;

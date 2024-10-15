@@ -7,7 +7,6 @@ const Connection = std.net.Server.Connection;
 pub const CRLF = "\r\n";
 
 pub fn main() !void {
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer {
         const check = gpa.deinit();
@@ -22,6 +21,8 @@ pub fn main() !void {
     try stdout.print("Logs from your program will appear here!\n", .{});
 
     var http = Http.init(allocator);
+    defer http.deinit();
+
     try http.get("/", root);
     try http.get("/echo/{slug}", echo);
     try http.start();
@@ -34,7 +35,7 @@ fn root(allocator: Allocator, req: *const Http.Request) !*Http.Response {
 }
 
 fn echo(allocator: Allocator, req: *const Http.Request) !*Http.Response {
-    const body = try allocator.dupe(u8, req.path_params.?.get("slug").?);
+    const body = req.path_params.?.get("slug").?;
     const resp = try Http.Response.initOnHeap(allocator, 200, body);
     return resp;
 }

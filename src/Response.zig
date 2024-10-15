@@ -4,11 +4,11 @@ const Self = @This();
 
 status_code: u9,
 headers: std.StringHashMap([]const u8),
-body: []u8,
+body: []const u8,
 allocator: Allocator,
 heap: bool = false,
 
-pub fn init(allocator: Allocator, status_code: u9, body: []u8) !Self {
+pub fn init(allocator: Allocator, status_code: u9, body: []const u8) !Self {
     return Self{
         .allocator = allocator,
         .status_code = status_code,
@@ -17,7 +17,7 @@ pub fn init(allocator: Allocator, status_code: u9, body: []u8) !Self {
     };
 }
 
-pub fn initOnHeap(allocator: Allocator, status_code: u9, body: []u8) !*Self {
+pub fn initOnHeap(allocator: Allocator, status_code: u9, body: []const u8) !*Self {
     const resp = try allocator.create(Self);
     resp.* = Self{
         .allocator = allocator,
@@ -31,15 +31,15 @@ pub fn initOnHeap(allocator: Allocator, status_code: u9, body: []u8) !*Self {
 
 pub fn deinit(self: *Self) void {
     self.allocator.free(self.body);
-    // var it = self.headers.iterator();
-    // while (it.next()) |item| {
-    //     self.allocator.free(item.key_ptr.*);
-    //     self.allocator.free(item.value_ptr.*);
-    // }
-    // self.headers.deinit();
-    // if (self.heap) {
-    //     self.allocator.destroy(self);
-    // }
+    var it = self.headers.iterator();
+    while (it.next()) |item| {
+        self.allocator.free(item.key_ptr.*);
+        self.allocator.free(item.value_ptr.*);
+    }
+    self.headers.deinit();
+    if (self.heap) {
+        self.allocator.destroy(self);
+    }
 }
 
 pub fn addHeader(self: *Self, key: []const u8, value: []const u8) void {
