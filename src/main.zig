@@ -20,17 +20,17 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     try stdout.print("Logs from your program will appear here!\n", .{});
 
-    var args = try std.process.argsWithAllocator(alloc);
-    _ = args.next(); // skip first param
-    var directory: [256]u8 = [_]u8{0} ** 256;
-    while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--directory")) {
-            const value = args.next().?;
-            @memcpy(directory[0..value.len], value);
-        }
-    }
-    std.debug.print("{s}", .{directory});
-    args.deinit();
+    // var args = try std.process.argsWithAllocator(alloc);
+    // _ = args.next(); // skip first param
+    // var directory: [256]u8 = [_]u8{0} ** 256;
+    // while (args.next()) |arg| {
+    //     if (std.mem.eql(u8, arg, "--directory")) {
+    //         const value = args.next().?;
+    //         @memcpy(directory[0..value.len], value);
+    //     }
+    // }
+    // std.debug.print("{s}", .{directory});
+    // args.deinit();
 
     try http.get("/", root);
     try http.get("/echo/{slug}", echo);
@@ -61,19 +61,27 @@ fn getFile(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
     _ = args.next(); // skip first param
-    var directory: [256]u8 = [_]u8{0} ** 256;
+    var directory: [256]u8 = undefined;
+    var dir: []u8 = &directory;
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--directory")) {
             const value = args.next().?;
-            @memcpy(directory[0..value.len], value);
+            dir = try std.fmt.bufPrint(&directory, "{s}", .{value});
         }
     }
 
-    const path = req.path_params.?.get("path").?;
     var abs_path_buf: [1024]u8 = undefined;
-    const abs_path = try std.fmt.bufPrint(&abs_path_buf, "/tmp/{s}/{s}", .{ directory, path });
-    const ff = try std.fs.openFileAbsolute(abs_path, .{ .mode = .read_only });
+    const abs_path = try std.fmt.bufPrint(&abs_path_buf, "{s}{s}", .{ dir, req.path_params.?.get("path").? });
+
+    const ff = std.fs.openFileAbsolute(abs_path, .{ .mode = .read_only }) catch |err| {
+        if (err == std.fs.File.OpenError.FileNotFound) {
+            const resp = try Http.Response.initOnHeap(allocator, 404, &[_]u8{});
+            return resp;
+        }
+        return err;
+    };
     defer ff.close();
+
     const content = try ff.readToEndAlloc(allocator, 1024);
     defer allocator.free(content);
 
