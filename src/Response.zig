@@ -42,7 +42,7 @@ pub fn deinit(self: *Self) void {
     }
 }
 
-pub fn addHeader(self: *Self, key: []const u8, value: []const u8) void {
+pub fn addHeader(self: *Self, key: []const u8, value: []const u8) !void {
     try self.headers.put(try self.allocator.dupe(u8, key), try self.allocator.dupe(u8, value));
 }
 

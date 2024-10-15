@@ -86,6 +86,7 @@ fn getFile(allocator: Allocator, req: *const Http.Request) !*Http.Response {
     defer allocator.free(content);
 
     const resp = try Http.Response.initOnHeap(allocator, 200, content);
+    try resp.addHeader("Content-Type", "application/octet-stream");
     return resp;
 }
 
