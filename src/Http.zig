@@ -50,7 +50,12 @@ pub fn Http(comptime ReaderType: type) type {
 
         pub fn handleConnection(self: *Self, conn: std.net.Server.Connection) !void {
             const reader = conn.stream.reader();
-            var request = try Request.init(self.allocator, reader);
+            var request = Request.init(self.allocator, reader) catch |err| {
+                if (err == error.EndOfStream) {
+                    return;
+                }
+                return err;
+            };
             defer request.deinit();
 
             var it = self.routes.iterator();

@@ -83,7 +83,7 @@ pub fn Request(comptime ReaderType: type) type {
             const line = try reader.readUntilDelimiterAlloc(allocator, delimiter, 256);
             defer allocator.free(line);
             var iter = std.mem.split(u8, line, " ");
-            // Duplicating here becuase freeing them separately is more straight forward
+            // Duplicating here because freeing them separately is more straight forward
             const method = try allocator.dupe(u8, iter.next() orelse @panic("Request method not found"));
             const path = try allocator.dupe(u8, iter.next() orelse @panic("Request path not found"));
             return .{
